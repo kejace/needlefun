@@ -2,7 +2,6 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# OPTIONS -W #-}
 
 module Main where
 
@@ -103,9 +102,16 @@ test = proc () -> do
     () <- store ! z      -< e
     returnA              -< ()
 
+testNeedle :: Circuit CPU CPU ((),()) ()
+testNeedle = [nd|
+  }=={load ! y}==\
+                 \
+                 {mul}=={neg}=={accumulate ! t}=={store ! z}==>
+                 /
+  }=={load ! x}==/
+|]
 
-main :: IO ()
-main = print $ runC test ((), CPU 2 30 400 5000)
+-------------------------------------------------------------------
 
 f :: (Int, Int, Int) -> (Int, Int, Int, Int)
 f = proc (a,b,c) -> do
@@ -126,16 +132,22 @@ fNeedle = [nd|
         \=={(*2)}========================>
 |]
 
---main :: IO ()
---main = putStrLn $ show $ fNeedle (1, 2, 3)
 
-repeatNeedle :: IO ()
-repeatNeedle = runKleisli [nd|
-    {Kleisli $ const getLine}=={arr ("You said: "++)}=={Kleisli putStrLn}=>
-|] ()
+--   *******************************************************
+--   *       .------.                                      *
+--   *  *----| (+1) |---o--------------------------------> *
+--   *       '------'   |                                  *
+--   *                  |                                  *
+--   *  *-----.         |                 .--------------> *
+--   *        |       .-------------.    /  .--------.     *
+--   *  *---) | (-----| uncurry div |---o---| negate |---> *
+--   *        |       '-------------'       '--------'     *
+--   *        |     .------.                               *
+--   *        '-----| (*2) |-----------------------------> *
+--   *              '------'                               *
+--   *******************************************************
 
---main :: IO ()
---main = repeatNeedle
+-----------------------------------------------------------------------
 
 -- n :: MealyM IO FilePath (Maybe FilePath)
 -- n = [nd|
@@ -145,8 +157,7 @@ repeatNeedle = runKleisli [nd|
 --                                       \=={ cache }==/
 -- |]
 
--- main :: IO ()
--- main = runT_ $ autoMealyM n
+-----------------------------------------------------------------------
 
 v :: (Int, Int) -> Int
 v = proc (a,b) -> do
@@ -160,7 +171,20 @@ vNeedle = [nd|
   }=={uncurry (+)}===>
 |]
 
--- main :: IO ()
--- main = putStrLn $ show $ streamAuto' (arr vNeedle) [(1,1),(2,2)]
 
+--------------------------------------------------------------------------
+--
+repeatNeedle :: IO ()
+repeatNeedle = runKleisli [nd|
+    {Kleisli $ const getLine}=={arr ("You said: "++)}=={Kleisli putStrLn}=>
+|] ()
 
+--------------------------------------------------------------------------
+
+main :: IO ()
+main = do
+  print $ runC testNeedle (((),()), CPU 2 30 400 5000)
+  print $ fNeedle (1, 2, 3)
+  print $ streamAuto' (arr vNeedle) [(1,1),(2,2)]
+  -- runT_ $ autoMealyM n
+  repeatNeedle
